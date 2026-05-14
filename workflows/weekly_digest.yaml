@@ -1,0 +1,102 @@
+id: weekly_digest
+namespace: orchestnews
+
+inputs:
+  - id: notion_api_key
+    type: STRING
+    defaults: "<<notion_api_key>>"
+  - id: notion_database_id
+    type: STRING
+    defaults: "<<notion_database_id>>"
+  - id: slack_webhook_url
+    type: STRING
+    defaults: "https://hooks.slack.com/services/<<your_app_link>>"
+  - id: ollama_endpoint
+    type: STRING
+    defaults: "http://host.docker.internal:<<your_docker_port>>" # Connects container to Mac host loop
+
+triggers:
+  - id: weekly_schedule
+    type: io.kestra.plugin.core.trigger.Schedule
+    cron: "0 8 * * 0" # Runs every Sunday morning at 8:00 AM
+
+tasks:
+  - id: fetch_news
+    type: io.kestra.plugin.scripts.python.Commands
+    namespaceFiles:
+      enabled: true
+    beforeCommands:
+      - pip install feedparser
+    commands:
+      - python -m scripts.fetch_news
+    outputFiles:
+      - fetched_articles.json
+
+  - id: deduplicate
+    type: io.kestra.plugin.scripts.python.Commands
+    namespaceFiles:
+      enabled: true
+    commands:
+      - python -m scripts.deduplicate "{{ outputs.fetch_news.outputFiles['fetched_articles.json'] }}"
+    outputFiles:
+      - unique_articles.json
+
+  - id: summarize
+    type: io.kestra.plugin.scripts.python.Commands
+    namespaceFiles:
+      enabled: true
+    beforeCommands:
+      - pip install requests
+    commands:
+      - python -m scripts.summarize "{{ outputs.deduplicate.outputFiles['unique_articles.json'] }}"
+    env:
+      OLLAMA_ENDPOINT: "{{ inputs.ollama_endpoint }}"
+    outputFiles:
+      - summarized_articles.json
+
+  - id: rank
+    type: io.kestra.plugin.scripts.python.Commands
+    namespaceFiles:
+      enabled: true
+    commands:
+      - python -m scripts.rank "{{ outputs.summarize.outputFiles['summarized_articles.json'] }}"
+    outputFiles:
+      - ranked_articles.json
+
+  - id: insights
+    type: io.kestra.plugin.scripts.python.Commands
+    namespaceFiles:
+      enabled: true
+    beforeCommands:
+      - pip install requests
+    commands:
+      - python -m scripts.insights "{{ outputs.rank.outputFiles['ranked_articles.json'] }}"
+    env:
+      OLLAMA_ENDPOINT: "{{ inputs.ollama_endpoint }}"
+    outputFiles:
+      - insights.json
+
+  - id: notion_upload
+    type: io.kestra.plugin.scripts.python.Commands
+    namespaceFiles:
+      enabled: true
+    beforeCommands:
+      - pip install requests
+    commands:
+      - python -m scripts.notion_upload "{{ outputs.rank.outputFiles['ranked_articles.json'] }}" "{{ outputs.insights.outputFiles['insights.json'] }}"
+    env:
+      NOTION_API_KEY: "{{ inputs.notion_api_key }}"
+      NOTION_DATABASE_ID: "{{ inputs.notion_database_id }}"
+    outputFiles:
+      - notion_status.json
+
+  - id: slack_notify
+    type: io.kestra.plugin.scripts.python.Commands
+    namespaceFiles:
+      enabled: true
+    beforeCommands:
+      - pip install requests
+    commands:
+      - python -m scripts.slack_notify "{{ outputs.insights.outputFiles['insights.json'] }}" "{{ outputs.notion_upload.outputFiles['notion_status.json'] }}"
+    env:
+      SLACK_WEBHOOK_URL: "{{ inputs.slack_webhook_url }}"

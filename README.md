@@ -14,23 +14,8 @@ The system fetches trending AI/tech news from RSS feeds, filters duplicate artic
 
 # High-Level Architecture
 
-```text
-RSS Feeds
-   ↓
-Fetch News
-   ↓
-Deduplicate Articles
-   ↓
-LLM Summarization (Ollama)
-   ↓
-Article Ranking + Personalization
-   ↓
-Trend Extraction (LLM)
-   ↓
-Upload to Notion
-   ↓
-Slack Notification
-```
+<img width="1400" height="583" alt="image" src="https://github.com/user-attachments/assets/aec92d3c-585d-42a4-a9e2-9f9bb9db28d9" />
+
 
 ---
 
@@ -129,3 +114,5 @@ OrchestNews demonstrates:
 - Multi-system architecture.
 
 It mirrors real-world AI workflow systems used in modern engineering organizations.
+
+I have written a [Medium Blog](https://medium.com/@sumana.basu2001/i-built-an-ai-news-intelligence-pipeline-using-kestra-ollama-notion-slack-zero-paid-apis-52845b810b93). Do drop in your comments ☺️
